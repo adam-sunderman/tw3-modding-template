@@ -1,0 +1,54 @@
+# manual github action used to build a release off of master based off of provided version parameter
+# TODO setup ENV for project
+
+name: Publish Release
+env:
+  RELEASE_NAME={yourReleaseNameSameAsVariablesSh}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release Version'
+        required: true
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v3
+
+      - name: Build Release
+        shell: bash
+        run: |
+          cd scripts && ./release.sh && cd ..
+          echo ${{ github.event.inputs.version }} > ./release/$RELEASE_NAME/version.txt
+
+      - name: Create Zip Archive
+        shell: pwsh
+        run: Compress-Archive ./release/$RELEASE_NAME release.zip
+
+      - name: Create Release
+        id: create_w3_mod_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          release_name: Release ${{ github.event.inputs.version }}
+          body: |
+            The Release (need to figure out how to aumotate changelog)
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        id: upload-release-asset 
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_w3_mod_release.outputs.upload_url }}
+          asset_path: ./release.zip
+          asset_name: $RELEASE_NAME-v${{ github.event.inputs.version }}.zip
+          asset_content_type: application/zip
